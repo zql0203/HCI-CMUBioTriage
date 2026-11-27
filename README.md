@@ -36,13 +36,13 @@ CMUBioTriage/
 ## Notes
 - Edit `assets/data/data.json` to update guide wording, contacts, and facility details. Have clinical guidance and emergency contacts reviewed by CMU/UH before public use.
 - Change `STAFF_PIN` and `SITE_SALT` in `api/config.php` before real use.
-- After changing cached app files, bump the `CACHE` version in `sw.js` (currently `cmubiotrage-v62`) so returning users receive the update; then reload the guide online.
+- After changing cached app files, bump the `CACHE` version in `sw.js` so returning users receive the update; then reload the guide online.
 - Netlify cannot run PHP; `netlify.toml` blocks `/api/*` there so PHP source is never exposed.
 - This is a pitch prototype. Reports and location data are stored as plain JSON on disk; do not enter real patient information or use this storage for a live service.
 
 ## QR and printed materials
-- Set poster and pocket-card QR codes to the **deployed HTTPS URL for this guide's public homepage**. There is no production URL or QR image in this project yet, so do not print a QR code made from localhost or a temporary tunnel address.
-- Put a short, human-readable fallback URL beside each QR code. Label it clearly, for example: “Scan to open the snakebite response guide. Save it while online for offline use.”
-- Test the final printed QR and fallback URL on several phones. A QR scan opens the homepage; it does not send a report or share location.
-- First aid text, hospital contacts, and emergency numbers are still demo content and must be confirmed by the local medical and facility reviewers before public distribution.
+- Open `/qr/` to print the card or download its QR as an SVG. The QR contains the full card text (emergency contact, first aid, and handoff checklist), not a link or facility status. A compatible scanner can read it offline on a first scan. If the camera does not display text, read the printed card beside the QR.
+- If card content changes, install the Python `qrcode` package with `python -m pip install qrcode`, then run `python tools/generate_offline_qr.py`. This regenerates `assets/img/offline-text-qr.svg` directly from the card's `data-qr-line` elements. Test the actual printed card on several phones in airplane mode before distribution.
+- The optional interactive guide at `/guide/` is separate. Open it online and wait for “Saved offline” before relying on it in the same browser without internet. Calling and sending SMS still need phone service. The main site's Facility Status is unchanged.
+- The card's first-aid wording follows [WHO snakebite first-aid guidance](https://www.who.int/teams/control-of-neglected-tropical-diseases/snakebite-envenoming/treatment). The listed hotlines are published by [DILG](https://ncr.dilg.gov.ph/dilg-leads-nationwide-campaign-for-unified-911-emergency-hotline/) and the [Philippine Red Cross](https://redcross.org.ph/contact-us/). The project remains a prototype; have a local clinical reviewer approve the final card before public distribution.
 - Staff stock confirmations require a vial count and verification details. Updates older than 24 hours are shown as stale; call the facility to verify current stock.

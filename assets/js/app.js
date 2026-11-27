@@ -1,6 +1,11 @@
 /* CMUbiotrage – offline-first first-response guide (demo). All content lives in data.json. */
 const STALE_MS = 24 * 3600 * 1000;
+const appRoot = new URL('../../', document.currentScript.src);
+const appUrl = path => new URL(path, appRoot).href;
+const guideOnly = ['guide', 'guide/', 'guide/index.html'].some(path => location.pathname === new URL(path, appRoot).pathname);
+const guideRoutes = new Set(['tell', 'do', 'nosignal']);
 let D = null, deferredInstall = null;
+let guideOfflineReady = false;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const isNum = n => typeof n === 'string' && /^\+?[\d\s\-()]+$/.test(n) && (n.match(/\d/g) || []).length >= 7;
@@ -8,8 +13,12 @@ const store = {
   get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
   set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
-const back = (to = '#/home') => `<a class="back" href="${to}">‹ Back</a>`;
-const dashboardNav = active => `<nav class="status-nav" aria-label="Main navigation"><a class="${active === 'home' ? 'status-nav-active' : ''}" ${active === 'home' ? 'aria-current="page"' : ''} href="#/home">⌁ &nbsp;Antivenom status</a><a class="${active === 'tell' ? 'status-nav-active' : ''}" ${active === 'tell' ? 'aria-current="page"' : ''} href="#/tell">▣ &nbsp;Handoff Summary</a><a class="${active === 'do' ? 'status-nav-active' : ''}" ${active === 'do' ? 'aria-current="page"' : ''} href="#/do">✚ &nbsp;First Aid and Contacts</a></nav>`;
+const back = (to = guideOnly ? '#/tell' : '#/home') => `<a class="back" href="${to}">‹ Back</a>`;
+const dashboardNav = active => {
+  const sections = [['tell', '▣', 'Handoff Summary'], ['do', '✚', 'First Aid and Contacts']];
+  if (!guideOnly) sections.unshift(['home', '⌁', 'Antivenom status']);
+  return `<nav class="status-nav" aria-label="Main navigation">${sections.map(([route, icon, label]) => `<a${active === route ? ' class="status-nav-active" aria-current="page"' : ''} href="#/${route}"><span aria-hidden="true">${icon}&nbsp;</span>${label}</a>`).join('')}</nav>`;
+};
 
 function dial(c, cls = 'btn dial') {
   return isNum(c.number)
@@ -65,13 +74,13 @@ const tellBody = () => `
           <p id="mapNote" class="review" hidden>Map needs internet for new areas. Use GPS or the area list instead.</p></div>
         <button class="btn" id="gps" type="button">📍 Use my GPS</button><div id="gpsOut" aria-live="polite"></div>
         <div id="pinOut" aria-live="polite"></div></section>
-      <section class="card"><h2>What happened?</h2><p class="field-hint">For a staff report, provide an area, a landmark, or a location pin. Other answers are optional; choose Unknown if unsure.</p>
+      <section class="card"><h2>What happened?</h2><p class="field-hint">${guideOnly ? 'Include details you can share with responders. Choose Unknown if unsure.' : 'For a staff report, provide an area, a landmark, or a location pin. Other answers are optional; choose Unknown if unsure.'}</p>
         ${sel('time','Time of the bite',D.options.times)}
         <p class="urgent-symptom-note">Symptoms to tell the responder about. This guide does not diagnose or rank severity.</p>${chips('cond','Victim’s condition (tap all that apply)',[...['Hard to breathe','Unconscious','Drooping eyelids'],...D.options.conditions.filter(x => !['Hard to breathe','Unconscious','Drooping eyelids'].includes(x))])}
         ${chips('done','Actions already taken',D.options.actions)}
         ${sel('snake','Snake (only if safe to note)',D.options.snakes)}</section>
     </div>
-    <section class="card"><h2>Optional: submit a report to staff</h2><p>This sends the details to the staff report inbox when online. It does not call emergency services or confirm that help is on the way.</p><p class="connection-state" data-connection-state></p><button class="btn primary" id="submitReport" type="button">Submit report to staff</button><a class="btn emergency-call" href="tel:143">Call for urgent help · 143</a><div id="submitStatus" role="status" aria-live="polite"></div></section>`;
+    ${guideOnly ? '' : `<section class="card"><h2>Optional: submit a report to staff</h2><p>This sends the details to the staff report inbox when online. It does not call emergency services or confirm that help is on the way.</p><p class="connection-state" data-connection-state></p><button class="btn primary" id="submitReport" type="button">Submit report to staff</button><a class="btn emergency-call" href="tel:143">Call for urgent help · 143</a><div id="submitStatus" role="status" aria-live="polite"></div></section>`}`;
 
 /* ---------- Public screens ---------- */
 const screens = {
@@ -83,7 +92,7 @@ const screens = {
         <div><p class="emergency-eyebrow">Snakebite response guide</p><h1 id="emergencyStartTitle">Get help first</h1><p>Ask someone nearby to help. Follow these steps in order.</p></div>
         <ol class="emergency-steps"><li><strong>Call for help</strong><a class="btn emergency-call" href="tel:143">Call Philippine Red Cross · 143</a><a class="call-failed-link" href="#/nosignal">Call didn’t connect?</a></li><li><strong>Follow the guide</strong><a class="btn primary" href="#/do">Open first aid and contacts</a><small>Step-by-step first aid, what to avoid, and who to contact.</small></li><li><strong>Share useful details</strong><a class="btn" href="#/tell">Prepare a handoff summary</a><small>A summary or staff report does not dispatch help.</small></li></ol>
       </section>
-      <p class="offline-hint"><strong>Offline:</strong> Previously saved guide content and the area/landmark form can work offline. Reports are not queued to send later. New map areas need internet; calls and SMS need phone service. <a href="#/before">Save the guide before you need it.</a></p>
+      <p class="offline-hint"><strong>Offline:</strong> Previously saved guide content and the area/landmark form can work offline. Reports are not queued to send later. New map areas need internet; calls and SMS need phone service. <a href="#/before">Save the guide</a> or <a href="${appUrl('qr/')}">get the printable QR code</a>.</p>
       <div class="status-heading"><div><h1>Facility status</h1><p class="lead">Reported antivenom stock and facility contacts</p></div><span class="status-connection ${SYNC() ? 'is-shared' : 'is-device-only'}">● ${SYNC() ? 'Shared sync configured' : 'Device only'}</span></div>
       <p class="field-hint status-sync-explainer">${SYNC() ? 'Facility updates are set to sync across devices when online. Check each update time and call the facility to verify.' : 'Facility updates saved by staff in this browser are not visible on other devices. Availability still needs to be confirmed directly with each facility.'}</p>
       ${dashboardNav('home')}
@@ -118,9 +127,9 @@ const screens = {
       <div class="card dont"><h2>✖ Don’t</h2><ul class="clean">${D.donts.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
     </div>
     <a class="btn primary" href="#/tell">Tell the Responder</a>
-    <a class="btn dial" style="background:var(--alarm);color:var(--onalarm)" href="#/home">Go to call block</a>`,
+    ${guideOnly ? '' : '<a class="btn dial" style="background:var(--alarm);color:var(--onalarm)" href="#/home">Go to call block</a>'}`,
 
-  tell: () => `<h1>Tell the Responder</h1>
+  tell: () => `<h1>${guideOnly ? 'Handoff Summary' : 'Tell the Responder'}</h1>
     <p class="lead">Share the key details with responders. Tap an answer or mark it Unknown; you do not need to guess.</p>
     ${tellBody()}`,
 
@@ -128,9 +137,9 @@ const screens = {
     <div class="card"><h2>Try these next steps</h2><ol class="clean">
       <li>Ask someone nearby to try calling a listed emergency or facility contact.</li>
       <li>If it is safe, ask someone to move to a place with phone signal and call. Stay with the person who needs help.</li>
-      <li>Open the facility list and choose a number to call directly.</li>
+      <li>${guideOnly ? 'Open First Aid and Contacts to see the listed numbers.' : 'Open the facility list and choose a number to call directly.'}</li>
       <li>Continue the first-aid guide. A report or message does not replace a call for help.</li></ol></div>
-    <a class="btn primary" href="#/home">Open facility contact list</a><a class="btn" href="#/do">Open first-aid guide</a>
+    ${guideOnly ? '<a class="btn primary" href="#/do">Open First Aid and Contacts</a>' : '<a class="btn primary" href="#/home">Open facility contact list</a><a class="btn" href="#/do">Open first-aid guide</a>'}
     <a class="btn dial" href="tel:143">📞 Call Philippine Red Cross · 143</a>
     <button class="btn" id="shareBtn">Share this guide</button>`,
 
@@ -488,9 +497,14 @@ function renderReports(fit) {
 
 /* ---------- Router ---------- */
 function route() {
+  if (!D) return;
   stopReportView();
   if (map) { map.remove(); map = null; pinMarker = null; }
-  const r = (location.hash.replace('#/', '') || 'home');
+  let r = location.hash.replace('#/', '') || (guideOnly ? 'tell' : 'home');
+  if (guideOnly && !guideRoutes.has(r)) {
+    r = 'tell';
+    history.replaceState(null, '', '#/tell');
+  }
   if (r === 'staff-out') {
     api(apiUrl('session'), { method: 'DELETE' }).then(() => { sessionStorage.removeItem('ss_staff'); location.hash = '#/home'; }).catch(() => { $('#app').innerHTML = '<p class="msg">Could not log out. Check your connection and <a href="#/staff-reports">try again</a>.</p>'; }); return;
   }
@@ -499,17 +513,17 @@ function route() {
   if ((r === 'staff-dir' || r === 'staff-log') && SYNC() && !pulled[r]) { pulled[r] = true; $('#app').innerHTML = '<p class="msg">Loading shared data…</p>'; (r === 'staff-dir' ? pullStatus() : pullLog()).finally(route); return; }
   const view = screens[r] || screensStaff[r] || screens.home;
   const html = view(); if (html === '' ) return;
-  const page = html + (r === 'about' || r === 'home' ? '' : '<p class="aboutlink"><a href="#/about">About this guide</a></p>');
-  const inDashboardShell = r === 'tell' || r === 'do';
-  $('#app').innerHTML = inDashboardShell
-    ? `<section class="status-page availability-dashboard app-page-shell"><div class="dashboard-brand"><strong>CMUBioTriage</strong></div>${dashboardNav(r)}<div class="app-page-content">${page}</div></section>`
+  const page = html + (guideOnly || r === 'about' || r === 'home' ? '' : '<p class="aboutlink"><a href="#/about">About this guide</a></p>');
+  $('#app').innerHTML = guideOnly || r === 'tell' || r === 'do'
+    ? `<section class="status-page availability-dashboard app-page-shell"><div class="dashboard-brand"><strong>CMUBioTriage</strong></div>${dashboardNav(r)}${guideOnly ? '<p class="offline-hint" id="guideOffline" role="status"></p>' : ''}<div class="app-page-content">${page}</div></section>`
     : page;
+  showGuideOfflineStatus();
   $('#app').focus({ preventScroll: true }); window.scrollTo(0, 0);
   bindUnknown(); wire(r);
 }
 function wire(r) {
   const on = (id, fn) => { const e = document.getElementById(id); if (e) e.addEventListener('click', fn); };
-  on('shareBtn', () => share('Snakebite first-response guide for CMU.'));
+  on('shareBtn', () => share('Snakebite first-response guide for CMU.', guideOnly ? appUrl('guide/') : location.href));
   if (r === 'home') {
     document.querySelectorAll('[data-scroll]').forEach(a => a.addEventListener('click', ev => {
       ev.preventDefault();
@@ -520,12 +534,14 @@ function wire(r) {
     }));
   }
   if (r === 'tell' || r === 'home') {
-    const updateConnection = () => document.querySelectorAll('[data-connection-state]').forEach(el => { el.textContent = navigator.onLine ? 'Internet appears available. Submission still needs confirmation.' : 'Offline: staff reports cannot be sent. Use the call option if you need urgent help.'; el.classList.toggle('is-offline', !navigator.onLine); });
-    updateConnection();
-    window.ononline = updateConnection;
-    window.onoffline = updateConnection;
-    pendingSubmission = null;
-    on('submitReport', submitReport);
+    if (!guideOnly) {
+      const updateConnection = () => document.querySelectorAll('[data-connection-state]').forEach(el => { el.textContent = navigator.onLine ? 'Internet appears available. Submission still needs confirmation.' : 'Offline: staff reports cannot be sent. Use the call option if you need urgent help.'; el.classList.toggle('is-offline', !navigator.onLine); });
+      updateConnection();
+      window.ononline = updateConnection;
+      window.onoffline = updateConnection;
+      pendingSubmission = null;
+      on('submitReport', submitReport);
+    }
     on('copySummary', () => copy(buildHandoffSummary()));
     on('sumShare', () => share(buildHandoffSummary(), ''));
     $('#app').querySelectorAll('input,select').forEach(field => {
@@ -550,12 +566,7 @@ function wire(r) {
         const registration = await navigator.serviceWorker.ready;
         const worker = registration.active;
         if (!worker) throw new Error('No active offline worker');
-        const saved = await new Promise((resolve, reject) => {
-          const channel = new MessageChannel();
-          const timer = setTimeout(() => { channel.port1.close(); reject(new Error('Offline check timed out')); }, 5000);
-          channel.port1.onmessage = event => { clearTimeout(timer); channel.port1.close(); resolve(!!event.data?.saved); };
-          worker.postMessage({ type: 'CHECK_OFFLINE_CACHE' }, [channel.port2]);
-        });
+        const saved = await checkOfflineCache(worker, 'CHECK_OFFLINE_CACHE');
         o.innerHTML = saved ? `<p class="msg">✔ Guide files are saved offline. ${esc(D.reviewStatus || D.reviewed || 'Clinical review pending')}</p>` : '<p class="msg">Not saved yet. Stay online, reload the guide, then check again.</p>';
       } catch { o.innerHTML = '<p class="msg">Could not check. Reload the page while online and try again.</p>'; }
       netStatus();
@@ -621,6 +632,28 @@ function wire(r) {
 }
 
 /* ---------- Status banner + boot ---------- */
+function checkOfflineCache(worker, type) {
+  return new Promise((resolve, reject) => {
+    const channel = new MessageChannel();
+    const timer = setTimeout(() => { channel.port1.close(); reject(new Error('Offline check timed out')); }, 5000);
+    channel.port1.onmessage = event => { clearTimeout(timer); channel.port1.close(); resolve(!!event.data?.saved); };
+    worker.postMessage({ type }, [channel.port2]);
+  });
+}
+function showGuideOfflineStatus() {
+  const status = $('#guideOffline');
+  if (!status) return;
+  status.textContent = guideOfflineReady
+    ? 'Saved offline in this browser. Bookmark this page to reopen it without internet. Calls and SMS still need phone service.'
+    : 'Open this guide while connected and wait for “Saved offline” before relying on it without internet.';
+}
+async function updateGuideOfflineStatus() {
+  const worker = navigator.serviceWorker.controller;
+  const saved = worker ? await checkOfflineCache(worker, 'CHECK_GUIDE_OFFLINE_CACHE').catch(() => false) : false;
+  if (navigator.serviceWorker.controller !== worker) return;
+  guideOfflineReady = saved;
+  showGuideOfflineStatus();
+}
 function netStatus() {
   const ok = 'serviceWorker' in navigator && navigator.serviceWorker.controller;
   const n = $('#net'); if (!n) return; n.textContent = ok ? `Saved offline · ${D.reviewStatus || D.reviewed || 'Clinical review pending'}` : 'Not saved for offline use yet';
@@ -649,14 +682,19 @@ function bindPrefs() {
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
 window.addEventListener('hashchange', route);
 (async function boot() {
-  try { D = await (await fetch('assets/data/data.json')).json(); }
+  try { D = await (await fetch(appUrl('assets/data/data.json'))).json(); }
   catch { $('#app').innerHTML = location.protocol === 'file:'
     ? '<div class="card"><h1>Open this through Apache</h1><p>You opened the file directly from the folder, which browsers block. Start Apache in XAMPP, then open:</p><p class="big">http://localhost/CMUBioTriage/</p></div>'
     : '<p class="msg">Could not load guide data. Reload while online once, then it will work offline.</p>'; return; }
-  if (window.L) L.Icon.Default.imagePath = 'assets/vendor/leaflet/images/'; bindPrefs();
+  if (window.L) L.Icon.Default.imagePath = appUrl('assets/vendor/leaflet/images/');
+  bindPrefs();
   if ($('#ver')) $('#ver').textContent = `Version ${D.version} · ${D.reviewStatus || D.reviewed || 'Clinical review pending'}`;
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => { netStatus(); }).catch(() => {});
+  if ('serviceWorker' in navigator) {
+    const onController = guideOnly ? updateGuideOfflineStatus : netStatus;
+    navigator.serviceWorker.addEventListener('controllerchange', onController);
+    navigator.serviceWorker.register(appUrl('sw.js')).then(onController).catch(() => {});
+  }
+  if (guideOnly) { route(); return; }
   try { const session = await api(apiUrl('session')); if (session.authenticated) sessionStorage.setItem('ss_staff', '1'); else sessionStorage.removeItem('ss_staff'); } catch { sessionStorage.removeItem('ss_staff'); }
   netStatus(); route();
-  navigator.serviceWorker && navigator.serviceWorker.addEventListener('controllerchange', netStatus);
 })();

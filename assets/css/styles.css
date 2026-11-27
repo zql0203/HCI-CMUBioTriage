@@ -657,3 +657,34 @@ html:not(.light):not(.sun) .location-empty{background:#101a14;color:#eef5ef;bord
 
 html:not(.light):not(.sun) .connection-state{background:#152c20;color:#d9f4e3;border-color:#55b67c}
 html:not(.light):not(.sun) .connection-state.is-offline{background:#3a1719;color:#ffe3e4;border-color:#e5484d}
+.qr-page{background:#10231a}
+.qr-main{max-width:980px;padding-block:clamp(28px,7vw,76px)}
+.qr-back{display:inline-block;margin-bottom:16px;color:var(--accent)}
+.qr-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,270px);align-items:center;gap:clamp(18px,4vw,40px);padding:clamp(18px,4.5vw,44px);border:1px solid #b3c5b8;border-top:7px solid #377556;border-radius:18px;background:#eef5ef;color:#10231a;font-size:1rem}
+.qr-eyebrow{margin:0 0 12px;color:#24583e;font-size:.8rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.qr-card h1{font-size:clamp(1.8rem,5vw,3rem);letter-spacing:-.035em}
+.qr-copy section h2{margin:0 0 4px;color:#24583e;font-size:1.08em}
+.qr-copy section{margin-top:14px}
+.qr-copy section p{margin:0 0 4px}
+.qr-contacts{padding:10px 14px;border-inline-start:3px solid #377556;background:#dcebe1}
+.qr-contacts a{color:#174830;font-weight:800}
+.qr-scan{width:min(100%,257px);margin:0;justify-self:center;text-align:center}
+.qr-image{display:block;width:100%;height:auto;aspect-ratio:1;border:1px solid #b3c5b8;border-radius:12px;background:#fff}
+.qr-scan figcaption{margin-top:8px;font-size:.9em;line-height:1.35}
+.qr-scan figcaption span{display:block;margin-top:4px}
+.qr-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px}
+.qr-actions .btn{width:auto;margin:0}
+@media(max-width:640px){.qr-card{grid-template-columns:1fr;padding-inline:14px}.qr-scan{grid-row:1}}
+@media print{
+  .qr-page{background:#fff;color:#10231a;min-height:auto}
+  .qr-main{padding:0}
+  .qr-back,.qr-actions{display:none}
+  .qr-card{grid-template-columns:minmax(0,1fr) 64mm;padding:14pt;gap:16pt;break-inside:avoid;background:#fff;font-size:11pt}
+  .qr-card h1{font-size:23pt}
+  .qr-scan{grid-row:auto;width:64mm}
+}
+
+/* The handoff preview should scroll with the form on phone-sized screens. */
+@media(max-width:640px){
+  .handoff-preview{position:static!important;top:auto!important;z-index:auto!important}
+}
